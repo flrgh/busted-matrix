@@ -19,9 +19,9 @@ local type = type
 ---@type fun(t: table): boolean
 local isempty
 do
-  local _
-  _, isempty = pcall(require, "table.isempty")
-  if not isempty then
+  local ok
+  ok, isempty = pcall(require, "table.isempty")
+  if not ok then
     ---@param t table
     ---@return boolean
     isempty = function(t)
@@ -35,9 +35,9 @@ end
 ---@type fun(t: T): T
 local shallow_copy
 do
-  local _
-  _, shallow_copy = pcall(require, "table.clone")
-  if not shallow_copy then
+  local ok
+  ok, shallow_copy = pcall(require, "table.clone")
+  if not ok then
     ---@generic T: table
     ---@param t T
     ---@return T
