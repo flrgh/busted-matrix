@@ -1,3 +1,35 @@
+do
+  -- busted versions before 2.1.2 have `--helper` support, but they do not
+  -- check for a function return value from the helper file, so they will
+  -- fail in the most confusing way possible
+
+  local ok, busted_core = pcall(require, "busted.core")
+  if not ok then
+    error("failed loading `busted.core`: " .. tostring(busted_core))
+  end
+
+  local version = busted_core().version
+  if not version then
+    error("failed checking busted version: `busted.core().version` is undefined")
+  end
+
+  local major, minor, patch = version:match("^(%d+)%.(%d+)%.(%d+)")
+  major = tonumber(major)
+  minor = tonumber(minor)
+  patch = tonumber(patch)
+  if not major or not minor or not patch then
+    error("failed checking busted version: could not parse '" .. version .. "'")
+  end
+
+  if major < 2
+    or (major == 2 and minor < 1)
+    or (major == 2 and minor == 1 and patch < 2)
+  then
+    error("busted.matrix requires busted >= 2.1.2 (installed: " .. version .. ")")
+  end
+end
+
+
 return function(busted, _, options)
   local print, printf
   local DEBUG

@@ -24,7 +24,7 @@ build = {
 supported_platforms = { "linux" }
 
 dependencies = {
-  "busted >= 2.2.0",
+  "busted >= 2.1.2",
   "luassert >= 1.9.0",
   "lua_cliargs >= 3.0",
 }
