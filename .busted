@@ -1,0 +1,24 @@
+return {
+  _all = {
+    lpath = "./src/?.lua;./src/?/init.lua;",
+    lazy = true,
+    helper = "./src/busted/matrix/helper.lua",
+    output = "htest",
+  },
+  default = {
+    ROOT = {
+      "spec/01-unit",
+      "spec/02-integration",
+    },
+  },
+  unit = {
+    ROOT = {
+      "spec/01-unit",
+    },
+  },
+  integration = {
+    ROOT = {
+      "spec/02-integration",
+    },
+  },
+}
