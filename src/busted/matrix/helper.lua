@@ -81,7 +81,6 @@ return function(busted, _, options)
     printf = print
   end
 
-
   local Matrix = require("busted.matrix")
 
   local block = require("busted.block")(busted)
@@ -114,7 +113,6 @@ return function(busted, _, options)
       return descriptor
     end
   end
-
 
   ---@param ns busted.matrix.registry.node
   ---@param descriptor string
@@ -215,12 +213,22 @@ return function(busted, _, options)
     default_fn = default_fn,
   })
 
-  busted.subscribe({ "register", "MATRIX" }, function(name, fn, trace, attrs)
-    local m = {
-      descriptor = "MATRIX",
-      attributes = attrs or {},
+  -- this implements the default behavior for `busted.subscribe({ 'register', descriptor })`
+  -- while also adding the `env` table ahead of time for the element
+  ---
+  ---@param descriptor string
+  ---@param name? string
+  ---@param fn function
+  ---@param trace table
+  ---@param attributes? table
+  ---@return table
+  local function attach(descriptor, name, fn, trace, attributes)
+    local ctx = busted.context.get()
+    local plugin = {
+      descriptor = descriptor,
+      attributes = attributes or {},
       env = {},
-      name = name or "MATRIX",
+      name = name,
       run = fn,
       trace = trace,
       starttick = nil,
@@ -230,12 +238,28 @@ return function(busted, _, options)
       duration = nil,
     }
 
-    busted.context.attach(m)
+    busted.context.attach(plugin)
 
-    local ctx = busted.context.get()
-    ctx.MATRIX = ctx.MATRIX or {}
-    insert(ctx.MATRIX, m)
+    if not ctx[descriptor] then
+      ctx[descriptor] = { plugin }
+    else
+      ctx[descriptor][#ctx[descriptor]+1] = plugin
+    end
 
+    return plugin
+  end
+
+
+  ---@param plugin table
+  local function wrap_env(plugin)
+    busted.context.push(plugin)
+    busted.wrap(plugin.run)
+    busted.context.pop()
+  end
+
+
+  busted.subscribe({ "register", "MATRIX" }, function(name, fn, trace, attrs)
+    local m = attach("MATRIX", name, fn, trace, attrs)
     local env = m.env
 
     if is_callable(fn) then
@@ -302,16 +326,16 @@ return function(busted, _, options)
       error("hopefully unreachable")
     end
 
-    m.env.add = function(name, elems)
-      if type(name) == "table" and not elems then
-        elems = name
-        name = m.name
+    m.env.add = function(var_name, elems)
+      if type(var_name) == "table" and not elems then
+        elems = var_name
+        var_name = m.name
       end
 
-      if type(name) ~= "string" then
+      if type(var_name) ~= "string" then
         error("cannot call add() from a MATRIX() block with no name")
       end
-      env.matrix:add(name, elems)
+      env.matrix:add(var_name, elems)
     end
 
     m.env.include = function(elem)
@@ -338,9 +362,7 @@ return function(busted, _, options)
       env.matrix:tag(match, tag)
     end
 
-    busted.context.push(m)
-    busted.wrap(m.run)
-    busted.context.pop()
+    wrap_env(m)
 
     return nil, false
   end, { priority = 1 })
@@ -380,7 +402,10 @@ return function(busted, _, options)
       for _, elem in ipairs(rendered) do
         local each_name = fmt("%s %s", name, elem.label)
         set(registry, descriptor, each_name, context, elem)
-        busted.publish({ "register", descriptor }, each_name, fn, element, attrs)
+
+        local plugin = attach(descriptor, each_name, fn, element, attrs)
+        plugin.env.matrix = elem.matrix
+        wrap_env(plugin)
       end
 
       return nil, false
@@ -397,7 +422,11 @@ return function(busted, _, options)
 
       element.env = element.env or {}
       if each then
-        printf("register(%s(%s)) => found matrix", descriptor, element.name)
+        if element.env.matrix then
+          assert(element.env.matrix == each.matrix)
+        end
+
+        printf("start(%s(%s)) => found matrix", descriptor, element.name)
         element.env.matrix = each.matrix
 
         -- TODO: child/parent matrix chains (configurable?)
@@ -406,7 +435,7 @@ return function(busted, _, options)
                                     busted.context.parent(parent))
 
           if parent_matrix then
-            printf("register(%s(%s)) => found parent matrix", descriptor, element.name)
+            printf("start(%s(%s)) => found parent matrix", descriptor, element.name)
             local mt = getmetatable(each.matrix)
             local new = setmetatable({}, {
               __index = function(_, k)

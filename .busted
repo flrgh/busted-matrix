@@ -1,6 +1,6 @@
 return {
   _all = {
-    lpath = "./src/?.lua;./src/?/init.lua;",
+    lpath = "./src/?.lua;./src/?/init.lua;./?.lua;./?/init.lua;",
     lazy = true,
     output = "htest",
     helper = "./src/busted/matrix/helper.lua",

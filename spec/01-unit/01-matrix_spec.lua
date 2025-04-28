@@ -1,60 +1,9 @@
 local Matrix = require("busted.matrix")
 
-local util = require("luassert.util")
-local deep_copy = util.deepcopy
-local deep_compare = util.deepcompare
+local helpers = require("spec.helpers")
 
-
----@param exp any[]
----@param got any[]
----@param msg? string
-local function assert_same_elements(exp, got, msg)
-  local missing = {}
-
-  msg = msg or "assert_same_elements()"
-
-  local deep = true
-  assert.unique(exp, deep, msg .. ": duplicate expected items")
-  assert.unique(got, deep, msg .. ": duplicate received items")
-
-  exp = deep_copy(exp)
-  got = deep_copy(got)
-
-  for i = #exp, 1, -1 do
-    local lhs_elem = exp[i]
-    exp[i] = nil
-
-    local found = false
-
-    for j, rhs_elem in ipairs(got) do
-      if deep_compare(lhs_elem, rhs_elem) then
-        found = true
-        table.remove(got, j)
-        break
-      end
-    end
-
-    if not found then
-      table.insert(missing, lhs_elem)
-    end
-  end
-
-  local extra = got
-  assert.same({}, missing, msg .. ": items missing")
-  assert.same({}, extra, msg .. ": unexpected items")
-end
-
-
----@param t table[]
----@param k string
-local function map_key(t, k)
-  local new = {}
-  for i = 1, #t do
-    new[i] = t[i][k]
-  end
-  return new
-end
-
+local assert_same_elements = helpers.assert_same_elements
+local extract = helpers.extract
 
 describe("busted.matrix", function()
   describe("new()", function()
@@ -135,7 +84,7 @@ describe("busted.matrix", function()
       assert_same_elements({
         { foo = "a" },
         { foo = "b" },
-      }, map_key(m:render(), "matrix"))
+      }, extract(m:render(), "matrix"))
 
       -- add another variable and re-render
       m:add("bar", { "x", "y" })
@@ -145,144 +94,7 @@ describe("busted.matrix", function()
         { foo = "a", bar = "y" },
         { foo = "b", bar = "x" },
         { foo = "b", bar = "y" },
-      }, map_key(m:render(), "matrix"))
-    end)
-
-    -- https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrixinclude
-    it("handles inclusions (github example 01)", function()
-      local m = Matrix.new()
-
-      m:add("fruit", { "apple", "pear" })
-      m:add("animal", { "cat", "dog" })
-
-      assert_same_elements({
-        { fruit = "apple", animal = "cat", color = nil, shape = nil },
-        { fruit = "apple", animal = "dog", color = nil, shape = nil },
-        { fruit = "pear",  animal = "cat", color = nil, shape = nil },
-        { fruit = "pear",  animal = "dog", color = nil, shape = nil },
-      }, map_key(m:render(), "matrix"), "initial matrix is incorrect")
-
-
-      -- unconditionally add `color = "green"` to all entries
-      m:include({ color = "green" })
-      assert_same_elements({
-        { fruit = "apple", animal = "cat", color = "green", shape = nil },
-        { fruit = "apple", animal = "dog", color = "green", shape = nil },
-        { fruit = "pear",  animal = "cat", color = "green", shape = nil },
-        { fruit = "pear",  animal = "dog", color = "green", shape = nil },
-      }, map_key(m:render(), "matrix"), "expected all items to have color == 'green'")
-
-
-      -- set `color = "pink"` where `animal == "cat"`
-      m:include({ color = "pink", animal = "cat" })
-      assert_same_elements({
-        { fruit = "apple", animal = "cat", color = "pink",  shape = nil },
-        { fruit = "apple", animal = "dog", color = "green", shape = nil },
-        { fruit = "pear",  animal = "cat", color = "pink",  shape = nil },
-        { fruit = "pear",  animal = "dog", color = "green", shape = nil },
-      }, map_key(m:render(), "matrix"), "expected color = 'pink' where animal == 'cat'")
-
-
-      -- set `shape = "circle"` where `fruit == "apple"`
-      m:include({ fruit = "apple", shape = "circle" })
-      assert_same_elements({
-        { fruit = "apple", animal = "cat", color = "pink",  shape = "circle" },
-        { fruit = "apple", animal = "dog", color = "green", shape = "circle" },
-        { fruit = "pear",  animal = "cat", color = "pink",  shape = nil },
-        { fruit = "pear",  animal = "dog", color = "green", shape = nil },
-      }, map_key(m:render(), "matrix"), "expected shape = 'circle' where fruit == 'apple'")
-
-      -- adds new `{ fruit = "banana" }` entry
-      m:include({ fruit = "banana" })
-      assert_same_elements({
-        { fruit = "apple",  animal = "cat", color = "pink",  shape = "circle" },
-        { fruit = "apple",  animal = "dog", color = "green", shape = "circle" },
-        { fruit = "pear",   animal = "cat", color = "pink",  shape = nil },
-        { fruit = "pear",   animal = "dog", color = "green", shape = nil },
-        { fruit = "banana", animal = nil,   color = nil,     shape = nil },
-      }, map_key(m:render(), "matrix"), "expected new fruit = 'banana' entry")
-
-      -- adds new `{ fruit = "banana", animal = "cat" }` entry
-      -- does not affect `{ fruit = "banana" }` because it was not a member of the
-      -- original matrix vars
-      m:include({ fruit = "banana", animal = "cat" })
-      assert_same_elements({
-        { fruit = "apple",  animal = "cat", color = "pink",  shape = "circle" },
-        { fruit = "apple",  animal = "dog", color = "green", shape = "circle" },
-        { fruit = "pear",   animal = "cat", color = "pink",  shape = nil },
-        { fruit = "pear",   animal = "dog", color = "green", shape = nil },
-        { fruit = "banana", animal = nil,   color = nil,     shape = nil },
-        { fruit = "banana", animal = "cat", color = nil,     shape = nil },
-      }, map_key(m:render(), "matrix"), "expected new fruit = 'banana', animal = 'cat' entry")
-    end)
-
-    -- https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#example-expanding-configurations
-    it("handles inclusions (github example 02)", function()
-      local m = Matrix.new()
-      m:add("os", { "windows-latest", "ubuntu-latest" })
-      m:add("node", { 14, 16 })
-      m:include({ os = "windows-latest", node = 16, npm = 6 })
-
-      assert_same_elements({
-        { os = "windows-latest", node = 14, npm = nil },
-        { os = "windows-latest", node = 16, npm = 6   },
-        { os = "ubuntu-latest",  node = 14, npm = nil },
-        { os = "ubuntu-latest",  node = 16, npm = nil },
-      }, map_key(m:render(), "matrix"))
-    end)
-
-    -- https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrixexclude
-    it("handles exclusions (github example 01)", function()
-      local m = Matrix.new()
-      m:add("os", { "macos-latest", "windows-latest" })
-      m:add("version", { 12, 14, 16 })
-      m:add("environment", { "staging", "production" })
-
-      assert_same_elements({
-        { os = "macos-latest", version = 12, environment = "staging" },
-        { os = "macos-latest", version = 14, environment = "staging" },
-        { os = "macos-latest", version = 16, environment = "staging" },
-        { os = "macos-latest", version = 12, environment = "production" },
-        { os = "macos-latest", version = 14, environment = "production" },
-        { os = "macos-latest", version = 16, environment = "production" },
-
-        { os = "windows-latest", version = 12, environment = "staging" },
-        { os = "windows-latest", version = 14, environment = "staging" },
-        { os = "windows-latest", version = 16, environment = "staging" },
-        { os = "windows-latest", version = 12, environment = "production" },
-        { os = "windows-latest", version = 14, environment = "production" },
-        { os = "windows-latest", version = 16, environment = "production" },
-      }, map_key(m:render(), "matrix"))
-
-      m:exclude({ os = "macos-latest",   version = 12, environment = "production" })
-      m:exclude({ os = "windows-latest", version = 16, environment = nil })
-
-      assert_same_elements({
-        { os = "macos-latest", version = 12, environment = "staging" },
-        { os = "macos-latest", version = 14, environment = "staging" },
-        { os = "macos-latest", version = 16, environment = "staging" },
-
-      --[[ removed by :exclude()
-        { os = "macos-latest", version = 12, environment = "production" },
-      ]]--
-
-        { os = "macos-latest", version = 14, environment = "production" },
-        { os = "macos-latest", version = 16, environment = "production" },
-
-        { os = "windows-latest", version = 12, environment = "staging" },
-        { os = "windows-latest", version = 14, environment = "staging" },
-
-      --[[ removed by :exclude()
-        { os = "windows-latest", version = 16, environment = "staging" },
-      ]]--
-
-        { os = "windows-latest", version = 12, environment = "production" },
-        { os = "windows-latest", version = 14, environment = "production" },
-
-      --[[ removed by :exclude()
-        { os = "windows-latest", version = 16, environment = "production" },
-      ]]--
-      }, map_key(m:render(), "matrix"))
+      }, extract(m:render(), "matrix"))
     end)
 
     it("handles inclusions after expansions", function()
