@@ -29,7 +29,6 @@ local function assert_matrix(matrix, ctx)
   assert.error_matches(function()
     print(matrix.not_a_var)
   end, "unknown matrix var: not_a_var")
-
 end
 
 
@@ -48,7 +47,8 @@ MATRIX {
   },
 }
 
-describe("matrix", function()
+
+describe("basic usage", function()
   assert_matrix(matrix, "describe()")
 
   strict_setup(function()

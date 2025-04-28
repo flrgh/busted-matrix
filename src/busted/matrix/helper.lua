@@ -43,10 +43,16 @@ return function(busted, _, options)
         or env == "enable"
   end
 
+  -- also enable for `busted --verbose`
+  if options.verbose then
+    DEBUG = true
+  end
+
   for _, arg in ipairs(options.arguments) do
     if arg == "--debug" then
       DEBUG = true
 
+    -- turn off debugging if previously enabled
     elseif arg == "--no-debug" then
       DEBUG = false
     end
@@ -296,7 +302,12 @@ return function(busted, _, options)
       error("hopefully unreachable")
     end
 
-    m.env.add = function(elems)
+    m.env.add = function(name, elems)
+      if type(name) == "table" and not elems then
+        elems = name
+        name = m.name
+      end
+
       if type(name) ~= "string" then
         error("cannot call add() from a MATRIX() block with no name")
       end
@@ -390,7 +401,7 @@ return function(busted, _, options)
         element.env.matrix = each.matrix
 
         -- TODO: child/parent matrix chains (configurable?)
-        if false then
+        if true and false then
           local parent_matrix = get(registry, parent.descriptor, parent.name,
                                     busted.context.parent(parent))
 

@@ -2,13 +2,13 @@ return {
   _all = {
     lpath = "./src/?.lua;./src/?/init.lua;",
     lazy = true,
-    helper = "./src/busted/matrix/helper.lua",
     output = "htest",
+    helper = "./src/busted/matrix/helper.lua",
   },
   default = {
     ROOT = {
       "spec/01-unit",
-      "spec/02-integration",
+      "spec/02-helper",
     },
   },
   unit = {
@@ -16,9 +16,9 @@ return {
       "spec/01-unit",
     },
   },
-  integration = {
+  helper = {
     ROOT = {
-      "spec/02-integration",
+      "spec/02-helper",
     },
   },
 }
