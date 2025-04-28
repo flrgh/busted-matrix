@@ -402,6 +402,8 @@ function Matrix:render(opts)
     for _, item in ipairs(rendered) do
       local matrix = item.matrix
       item.matrix = setmetatable({}, {
+        vars = all_var_names,
+
         __index = function(_, k)
           if not all_var_names[k] then
             error("unknown matrix var: " .. tostring(k))

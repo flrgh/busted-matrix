@@ -356,6 +356,27 @@ return function(busted, _, options)
       if each then
         printf("register(%s(%s)) => found matrix", descriptor, element.name)
         element.env.matrix = each.matrix
+
+        -- TODO: child/parent matrix chains (configurable?)
+        if false then
+          local parent_matrix = get(registry, parent.descriptor, parent.name,
+                                    busted.context.parent(parent))
+
+          if parent_matrix then
+            printf("register(%s(%s)) => found parent matrix", descriptor, element.name)
+            local mt = getmetatable(each.matrix)
+            local new = setmetatable({}, {
+              __index = function(_, k)
+                if mt.vars[k] then
+                  return each.matrix[k]
+                end
+                return parent_matrix.matrix[k]
+              end,
+              __newindex = assert(mt.__newindex),
+            })
+            element.env.matrix = new
+          end
+        end
       else
         element.env.matrix = nil
       end
