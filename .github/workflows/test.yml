@@ -8,10 +8,16 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '*.md'
+      - LICENSE
 
   pull_request:
     branches:
       - '*'
+    paths-ignore:
+      - '*.md'
+      - LICENSE
 
 defaults:
   run:
