@@ -1,4 +1,4 @@
-name: Lint & Test
+name: CI
 
 env:
   ROCKSPEC_FILE: busted-matrix-scm-1.rockspec
@@ -26,6 +26,7 @@ defaults:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    name: Lint
     steps:
       - uses: actions/checkout@v4
 
@@ -33,7 +34,7 @@ jobs:
         with:
           luaVersion: "5.2"
 
-      - uses: leafo/gh-actions-luarocks@v4
+      - uses: leafo/gh-actions-luarocks@v5
         with:
           luarocksVersion: ${{ env.LUAROCKS_VERSION }}
 
@@ -66,7 +67,7 @@ jobs:
         with:
           luaVersion: ${{ matrix.lua }}
 
-      - uses: leafo/gh-actions-luarocks@v4
+      - uses: leafo/gh-actions-luarocks@v5
         with:
           luarocksVersion: ${{ env.LUAROCKS_VERSION }}
 
