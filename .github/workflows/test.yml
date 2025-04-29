@@ -65,7 +65,7 @@ jobs:
           luarocksVersion: ${{ env.LUAROCKS_VERSION }}
 
       - name: install
-        run: luarocks install "${ROCKSPEC_FILE:?}"
+        run: luarocks make "${ROCKSPEC_FILE:?}"
 
       - name: install dev dependencies
         run: luarocks test --prepare "${ROCKSPEC_FILE:?}"
