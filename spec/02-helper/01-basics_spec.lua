@@ -13,7 +13,7 @@ local function assert_matrix(matrix, ctx)
   end
 
   local key = string.format("%s x = %q, y = %q",
-                            ctx, matrix.x, matrix.y)
+                            ctx, tostring(matrix.x), tostring(matrix.y))
 
   assert.is_nil(seen[key], "duplicate matrix: " .. key)
   seen[key] = true

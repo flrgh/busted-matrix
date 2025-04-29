@@ -1,0 +1,80 @@
+name: Lint & Test
+
+env:
+  ROCKSPEC_FILE: busted-matrix-scm-1.rockspec
+  LUAROCKS_VERSION: "3.11.1"
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '*.md'
+      - LICENSE
+
+  pull_request:
+    branches:
+      - '*'
+    paths-ignore:
+      - '*.md'
+      - LICENSE
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: leafo/gh-actions-lua@v11
+        with:
+          luaVersion: "5.2"
+
+      - uses: leafo/gh-actions-luarocks@v4
+        with:
+          luarocksVersion: ${{ env.LUAROCKS_VERSION }}
+
+      - name: install luacheck
+        run: luarocks install luacheck
+
+      - name: lint lua files
+        run: luacheck src spec
+
+      - name: lint rockspec file
+        run: luarocks lint "${ROCKSPEC_FILE:?}"
+
+  test:
+    runs-on: ubuntu-latest
+    name: Test - Lua ${{ matrix.lua }}
+    strategy:
+      matrix:
+        lua:
+          - "5.1"
+          - "5.2"
+          - "5.3"
+          - "5.4"
+          - "luajit-2.1"
+          - "luajit-openresty"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: leafo/gh-actions-lua@v11
+        with:
+          luaVersion: ${{ matrix.lua }}
+
+      - uses: leafo/gh-actions-luarocks@v4
+        with:
+          luarocksVersion: ${{ env.LUAROCKS_VERSION }}
+
+      - name: install
+        run: luarocks make "${ROCKSPEC_FILE:?}"
+
+      - name: install dev dependencies
+        run: luarocks test --prepare "${ROCKSPEC_FILE:?}"
+
+      - name: test
+        run: luarocks test "${ROCKSPEC_FILE:?}"

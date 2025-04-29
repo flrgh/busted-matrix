@@ -1,5 +1,7 @@
 # busted-matrix
 
+[![CI](https://github.com/flrgh/busted-matrix/actions/workflows/test.yml/badge.svg)](https://github.com/flrgh/busted-matrix/actions/workflows/test.yml)
+
 Persue more permutations.
 
 Cover all corners.
