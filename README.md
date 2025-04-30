@@ -123,7 +123,9 @@ end
 
 # installation
 
-**TODO** (install it by hand for now)
+```console
+luarocks install busted-matrix
+```
 
 ### requirements
 
