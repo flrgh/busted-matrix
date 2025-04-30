@@ -124,6 +124,54 @@ local function table_match(subject, criteria)
 end
 
 
+---@param t table
+---@return table
+local function unprotect(t)
+  local new = {}
+
+  local mt = getmetatable(t)
+  local protected = mt and mt.matrix or t
+
+  for k, v in pairs(protected) do
+    new[k] = v
+  end
+
+  return new
+end
+
+
+---@param matrix table
+---@param vars? table
+---@return table
+local function protect(matrix, vars)
+  if not vars then
+    local mt = getmetatable(matrix)
+    vars = mt and mt.vars
+  end
+
+  assert(vars)
+
+  local protected = setmetatable({}, {
+    vars = vars,
+
+    matrix = matrix,
+
+    __index = function(_, k)
+      if not vars[k] then
+        error("unknown matrix var: " .. tostring(k))
+      end
+      return matrix[k]
+    end,
+
+    __newindex = function()
+      error("attempting to overwrite matrix var")
+    end,
+  })
+
+  return protected
+end
+
+
 --- Test matrix object
 ---
 --- For the sake of familiarity with existing tooling, this object implements
@@ -400,21 +448,7 @@ function Matrix:render(opts)
 
   if opts.protect then
     for _, item in ipairs(rendered) do
-      local matrix = item.matrix
-      item.matrix = setmetatable({}, {
-        vars = all_var_names,
-
-        __index = function(_, k)
-          if not all_var_names[k] then
-            error("unknown matrix var: " .. tostring(k))
-          end
-          return matrix[k]
-        end,
-
-        __newindex = function()
-          error("attempting to overwrite matrix var")
-        end,
-      })
+      item.matrix = protect(item.matrix, all_var_names)
     end
   end
 
@@ -444,5 +478,7 @@ end
 
 
 return {
+  protect = protect,
+  unprotect = unprotect,
   new = Matrix.new,
 }
