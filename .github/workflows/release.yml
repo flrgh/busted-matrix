@@ -64,5 +64,4 @@ jobs:
         run: |
           luarocks upload \
             --temp-key "${LUAROCKS_API_KEY:?}" \
-            --sign \
             "${ROCKSPEC_FILE:?}"
