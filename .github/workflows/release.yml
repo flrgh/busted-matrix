@@ -1,0 +1,68 @@
+name: release
+
+on:
+  push:
+    tags:
+      - '*'
+env:
+  SRC_ROCKSPEC_FILE: busted-matrix-scm-1.rockspec
+  LUAROCKS_VERSION: "3.11.1"
+  TAG: ${{ github.ref_name }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  luarocks:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: leafo/gh-actions-lua@v11
+        with:
+          luaVersion: "5.2"
+
+      - uses: leafo/gh-actions-luarocks@v5
+        with:
+          luarocksVersion: ${{ env.LUAROCKS_VERSION }}
+
+      - name: write new rockspec file
+        run: |
+          if ! [[ ${TAG:?} =~ ^v[0-9]+\.[0-9+]\.[0-9]+$ ]]; then
+            echo "FAIL: invalid tag format ($TAG)"
+            exit 1
+          fi
+
+          TMP=$(mktemp -d)
+          luarocks new-version \
+            --dir "$TMP" \
+            --tag "${TAG:?}" \
+            "${SRC_ROCKSPEC_FILE:?}"
+
+          FILES=("$TMP"/*)
+          ROCKSPEC_FILE=${FILES[0]:?}
+
+          mv -v "$ROCKSPEC_FILE" ./
+          ROCKSPEC_FILE=${ROCKSPEC_FILE##*/}
+
+          echo "ROCKSPEC_FILE=$ROCKSPEC_FILE" >> $GITHUB_ENV
+
+      - name: install
+        run: luarocks make "${ROCKSPEC_FILE:?}"
+
+      - name: install dev dependencies
+        run: luarocks test --prepare "${ROCKSPEC_FILE:?}"
+
+      - name: test
+        run: luarocks test "${ROCKSPEC_FILE:?}"
+
+      - name: upload
+        env:
+          LUAROCKS_API_KEY: ${{ secrets.LUAROCKS_API_KEY }}
+        run: |
+          luarocks upload \
+            --temp-key "${LUAROCKS_API_KEY:?}" \
+            --sign \
+            "${ROCKSPEC_FILE:?}"
