@@ -81,6 +81,21 @@ return function(busted, _, options)
     printf = print
   end
 
+
+  ---@generic T: table
+  ---@param t T|nil
+  ---@return T
+  local function copy(t)
+    local new = {}
+    if t then
+      for k, v in pairs(t) do
+        new[k] = v
+      end
+    end
+    return new
+  end
+
+
   local Matrix = require("busted.matrix")
 
   local block = require("busted.block")(busted)
@@ -94,116 +109,6 @@ return function(busted, _, options)
         and true
   end
 
-  ---@class busted.matrix.registry.node
-  ---
-  ---@field value busted.matrix.each|nil
-  ---@field children { [string]: busted.matrix.registry.node }
-  local registry = {
-    value = nil,
-    children = {},
-  }
-
-  ---@param descriptor string
-  ---@param name? string
-  ---@return string
-  local function key_for(descriptor, name)
-    if name then
-      return fmt("%s(%s)", descriptor, name)
-    else
-      return descriptor
-    end
-  end
-
-  ---@param ns busted.matrix.registry.node
-  ---@param descriptor string
-  ---@param name? string
-  ---@param parent? table
-  ---@return busted.matrix.each? value
-  local function get(ns, descriptor, name, parent)
-    local path = { key_for(descriptor, name) }
-
-    while parent and parent.descriptor ~= "suite" do
-      insert(path, key_for(parent.descriptor, parent.name))
-      parent = busted.context.parent(parent)
-    end
-
-    local node = ns
-    for i = #path, 1, -1 do
-      node = node.children and node.children[path[i]]
-      if not node then
-        return
-      end
-    end
-
-    return node.value
-  end
-
-
-  ---@param ns busted.matrix.registry.node
-  ---@param descriptor string
-  ---@param name? string
-  ---@param parent? table
-  ---@param value busted.matrix.each
-  local function set(ns, descriptor, name, parent, value)
-    local path = { key_for(descriptor, name) }
-
-    while parent and parent.descriptor ~= "suite" do
-      insert(path, key_for(parent.descriptor, parent.name))
-      parent = busted.context.parent(parent)
-    end
-
-    local node = ns
-    for i = #path, 1, -1 do
-      if not node.children then
-        node.children = {}
-      end
-
-      if not node.children[path[i]] then
-        node.children[path[i]] = {}
-      end
-
-      node = node.children[path[i]]
-    end
-
-    node.value = value
-  end
-
-
-  ---@param ns busted.matrix.registry.node
-  ---@param descriptor string
-  ---@param name? string
-  ---@param parent? table
-  local function delete(ns, descriptor, name, parent)
-    local path = {}
-
-    while parent and parent.descriptor ~= "suite" do
-      insert(path, key_for(parent.descriptor, parent.name))
-      parent = busted.context.parent(parent)
-    end
-
-    local node = ns
-    for i = #path, 1, -1 do
-      if not node.children then
-        return
-      end
-
-      if not node.children[path[i]] then
-        return
-      end
-
-      node = node.children[path[i]]
-    end
-
-    local key = key_for(descriptor, name)
-    if node.children then
-      node.children[key] = nil
-      if next(node.children) == nil then
-        node.children = nil
-      end
-    end
-  end
-
-
   local function default_fn()
     error("unreachable")
   end
@@ -213,8 +118,10 @@ return function(busted, _, options)
     default_fn = default_fn,
   })
 
-  -- this implements the default behavior for `busted.subscribe({ 'register', descriptor })`
-  -- while also adding the `env` table ahead of time for the element
+  --- this implements the default behavior for `busted.subscribe({ 'register', descriptor })`
+  --- while also adding the `env` table ahead of time for the element
+  ---
+  --- the attributes table is [shallow] copied, so changes can be made to it as needed
   ---
   ---@param descriptor string
   ---@param name? string
@@ -226,7 +133,7 @@ return function(busted, _, options)
     local ctx = busted.context.get()
     local plugin = {
       descriptor = descriptor,
-      attributes = attributes or {},
+      attributes = copy(attributes),
       env = {},
       name = name,
       run = fn,
@@ -258,8 +165,8 @@ return function(busted, _, options)
   end
 
 
-  busted.subscribe({ "register", "MATRIX" }, function(name, fn, trace, attrs)
-    local m = attach("MATRIX", name, fn, trace, attrs)
+  busted.subscribe({ "register", "MATRIX" }, function(name, fn, trace, attributes)
+    local m = attach("MATRIX", name, fn, trace, attributes)
     local env = m.env
 
     if is_callable(fn) then
@@ -369,10 +276,10 @@ return function(busted, _, options)
 
 
   for _, descriptor in ipairs({ "describe", "it" }) do
-    busted.subscribe({ "register", descriptor }, function(name, fn, element, attrs)
+    busted.subscribe({ "register", descriptor }, function(name, fn, element, attributes)
       local context = busted.context.get()
 
-      if get(registry, descriptor, name, context) then
+      if attributes and attributes.matrix then
         printf("register(%s(%s)) => already expanded", descriptor, name)
         return nil, true
       end
@@ -384,8 +291,8 @@ return function(busted, _, options)
 
       local matrix = Matrix.new()
 
-      for _, elem in ipairs(context.MATRIX) do
-        elem.env.matrix = matrix
+      for _, child in ipairs(context.MATRIX) do
+        child.env.matrix = matrix
       end
 
       local ok = block.execAll("MATRIX", context)
@@ -401,10 +308,10 @@ return function(busted, _, options)
 
       for _, elem in ipairs(rendered) do
         local each_name = fmt("%s %s", name, elem.label)
-        set(registry, descriptor, each_name, context, elem)
 
-        local plugin = attach(descriptor, each_name, fn, element, attrs)
+        local plugin = attach(descriptor, each_name, fn, element, attributes)
         plugin.env.matrix = elem.matrix
+        plugin.attributes.matrix = elem.matrix
         wrap_env(plugin)
       end
 
@@ -418,39 +325,40 @@ return function(busted, _, options)
                           or descriptor
 
     busted.subscribe({ start_and_end, "start" }, function(element, parent)
-      local each = get(registry, descriptor, element.name, parent)
+      local matrix = element.attributes and element.attributes.matrix
 
       element.env = element.env or {}
-      if each then
-        if element.env.matrix then
-          assert(element.env.matrix == each.matrix)
-        end
-
-        printf("start(%s(%s)) => found matrix", descriptor, element.name)
-        element.env.matrix = each.matrix
-
-        -- TODO: child/parent matrix chains (configurable?)
-        if true and false then
-          local parent_matrix = get(registry, parent.descriptor, parent.name,
-                                    busted.context.parent(parent))
-
-          if parent_matrix then
-            printf("start(%s(%s)) => found parent matrix", descriptor, element.name)
-            local mt = getmetatable(each.matrix)
-            local new = setmetatable({}, {
-              __index = function(_, k)
-                if mt.vars[k] then
-                  return each.matrix[k]
-                end
-                return parent_matrix.matrix[k]
-              end,
-              __newindex = assert(mt.__newindex),
-            })
-            element.env.matrix = new
-          end
-        end
-      else
+      if not matrix then
         element.env.matrix = nil
+        return nil, true
+      end
+
+      if element.env.matrix then
+        assert(element.env.matrix == matrix)
+      end
+
+      printf("start(%s(%s)) => found matrix", descriptor, element.name)
+      element.env.matrix = matrix
+
+      -- TODO: child/parent matrix chains (configurable?)
+      if true and false then
+        local parent_matrix = parent.attributes
+                          and parent.attributes.matrix
+
+        if parent_matrix then
+          printf("start(%s(%s)) => found parent matrix", descriptor, element.name)
+          local mt = getmetatable(matrix)
+          local new = setmetatable({}, {
+            __index = function(_, k)
+              if mt.vars[k] then
+                return matrix[k]
+              end
+              return parent_matrix.matrix[k]
+            end,
+            __newindex = assert(mt.__newindex),
+          })
+          element.env.matrix = new
+        end
       end
 
       return nil, true
@@ -458,7 +366,9 @@ return function(busted, _, options)
 
 
     busted.subscribe({ start_and_end, "end" }, function(element, parent)
-      delete(registry, descriptor, element.name, parent)
+      if element.attributes then
+        element.attributes.matrix = nil
+      end
 
       if element.env then
         element.env.matrix = nil
@@ -467,11 +377,6 @@ return function(busted, _, options)
       return nil, true
     end, { priority = 1 })
   end
-
-  busted.subscribe({ "file", "end" }, function(file)
-    delete(registry, "file", file.name, nil)
-    return nil, true
-  end, { priority = 1 })
 
   return true
 end
