@@ -20,6 +20,7 @@ dependencies = {
   "luassert >= 1.9.0",
   "lua_cliargs >= 3.0",
   "inspect >= 3.0",
+  "say >= 1.4",
 }
 build = {
   type = "builtin",

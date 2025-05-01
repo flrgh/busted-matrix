@@ -1,11 +1,23 @@
+local assert = require("luassert")
 local util = require("luassert.util")
+local say = require("say")
 
----@generic T
----@type fun(t: T):T
+local E_ARGTYPE = "matrix.error.argtype"
+say:set(E_ARGTYPE, "bad argument #%s to '%s' (%s expected, got %s)")
+
+local function e_argtype(narg, fn, exp, got)
+  return say(E_ARGTYPE, { narg, fn, exp, got })
+end
+
+local E_BADARG = "matrix.error.invalid-arg"
+say:set(E_BADARG, "bad argument #%s to '%s' (%s)")
+
+local function e_badarg(narg, fn, reason)
+  return say(E_BADARG, { narg, fn, reason })
+end
+
+
 local deep_copy = util.deepcopy
-
----@generic T
----@type fun(lhs:T, rhs:T):boolean
 local deep_compare = util.deepcompare
 
 local ipairs = ipairs
@@ -28,6 +40,135 @@ do
       return next(t, nil) == nil
     end
   end
+end
+
+
+---@param exp "table"|"string"|"number"|"table"|"boolean"
+---@param v any
+---@param narg integer
+---@param fn string
+---@param level? integer
+local function check_type(exp, v, narg, fn, level)
+  level = (level or 1) + 1
+
+  local got = type(v)
+  assert(got == exp,
+         say(E_ARGTYPE, { narg, fn, exp, got }),
+         level)
+end
+
+
+---@param exp "table"|"string"|"number"|"table"|"boolean"
+---@param v any
+---@param narg integer
+---@param fn string
+---@param level? integer
+local function check_optional(exp, v, narg, fn, level)
+  if v == nil then
+    return
+  end
+
+  level = (level or 1) + 1
+
+  local got = type(v)
+  assert(got == exp,
+         say(E_ARGTYPE, { narg, fn, exp .. " or nil", got }),
+         level)
+end
+
+
+---@param v any
+---@param narg integer
+---@param fn string
+---@param level? integer
+local function check_non_empty_table(v, narg, fn, level)
+  level = (level or 1) + 1
+  check_type("table", v, narg, fn, level + 1)
+
+  assert(not isempty(v),
+         say(E_BADARG, { narg, fn, "empty table" }),
+         level)
+end
+
+
+---@param v any
+---@param narg integer
+---@param fn string
+---@param level? integer
+local function check_non_empty_string(v, narg, fn, level)
+  level = (level or 1) + 1
+  check_type("string", v, narg, fn, level + 1)
+
+  assert(v ~= "",
+         say(E_BADARG, { narg, fn, "empty string" }),
+         level)
+end
+
+
+---@param v any
+---@param narg integer
+---@param fn string
+---@param level? integer
+---@return string[]
+local function string_list(v, narg, fn, level, optional, unique)
+  if optional and v == nil then
+    return {}
+  end
+
+  level = (level or 1) + 1
+  local typ = type(v)
+
+  local list
+
+  if typ == "string" then
+    assert(v ~= "", e_badarg(narg, fn, "empty string", level))
+    list = { v }
+
+  elseif typ == "table" then
+    list = {}
+    local seen
+
+    if unique then
+      seen = {}
+    end
+
+    for i, iv in pairs(v) do
+      assert(type(i) == "number",
+             e_badarg(narg, fn, "non-integer table key"),
+             level)
+
+      local ctx = "table element at #" .. i
+
+      assert(type(iv) == "string",
+             e_badarg(narg, fn, "non-string " .. ctx),
+             level)
+
+      assert(iv ~= "",
+             e_badarg(narg, fn, "empty string " .. ctx),
+             level)
+
+      if unique then
+        assert(seen[iv] == nil,
+               e_badarg(narg, fn, "duplicate value " .. ctx),
+               level)
+
+        seen[iv] = true
+      end
+
+      insert(list, iv)
+    end
+
+    assert(not isempty(list),
+           e_badarg(narg, fn, "empty list"),
+           level)
+
+  else
+    assert(false,
+           e_argtype(narg, fn, "string or table of strings", typ),
+           level)
+  end
+
+  return list
 end
 
 
@@ -127,6 +268,8 @@ end
 ---@param t table
 ---@return table
 local function unprotect(t)
+  check_type("table", t, 1, "Matrix.unprotect")
+
   local new = {}
 
   local mt = getmetatable(t)
@@ -144,12 +287,16 @@ end
 ---@param vars? table
 ---@return table
 local function protect(matrix, vars)
+  check_type("table", matrix, 1, "Matrix.protect")
+  check_optional("table", vars, 2, "Matrix.protect")
+
   if not vars then
     local mt = getmetatable(matrix)
     vars = mt and mt.vars
   end
 
-  assert(vars)
+  assert(type(vars) == "table",
+         e_badarg(1, "Matrix.protect", "not a matrix element"))
 
   local protected = setmetatable({}, {
     vars = vars,
@@ -183,6 +330,7 @@ end
 ---
 ---@field vars         busted.matrix.var[]
 ---@field vars_by_name table<string, busted.matrix.var>
+---@field seen_vars    table<string, boolean>
 ---
 ---@field includes table[]
 ---@field excludes table[]
@@ -213,6 +361,7 @@ function Matrix.new()
   return setmetatable({
     vars = {},
     vars_by_name = {},
+    seen_vars = {},
     includes = {},
     excludes = {},
     tags = {},
@@ -227,11 +376,11 @@ end
 ---@param values any[]
 ---@return busted.matrix
 function Matrix:add(name, values)
-  assert(type(name) == "string")
-  assert(type(values) == "table")
-
+  check_non_empty_string(name, 1, "add")
   assert(self.vars_by_name[name] == nil,
-         "duplicate matrix var: " .. name)
+         e_badarg(1, "Matrix.add", "duplicate var"))
+
+  check_non_empty_table(values, 2, "add")
 
   ---@type busted.matrix.var
   local entry = {
@@ -251,6 +400,7 @@ end
 ---@param inc table
 ---@return busted.matrix
 function Matrix:include(inc)
+  check_non_empty_table(inc, 1, "include")
   insert(self.includes, inc)
   return self
 end
@@ -261,6 +411,7 @@ end
 ---@param exc table
 ---@return busted.matrix
 function Matrix:exclude(exc)
+  check_non_empty_table(exc, 1, "exclude")
   insert(self.excludes, exc)
   return self
 end
@@ -272,13 +423,9 @@ end
 ---@param tag string|string[]
 ---@return busted.matrix
 function Matrix:tag(match, tag)
-  local tags
-  if type(tag) == "table" then
-    tags = deep_copy(tag)
-  else
-    assert(type(tag) == "string")
-    tags = { tag }
-  end
+  check_non_empty_table(match, 1, "tag")
+
+  local tags = string_list(tag, 2, "tag", nil, false, true)
 
   insert(self.tags, {
     match = match,
@@ -296,6 +443,7 @@ end
 ---@param opts? { label: boolean, protect: boolean }
 ---@return busted.matrix.each[]
 function Matrix:render(opts)
+  check_optional("table", opts, 1, "render")
   opts = opts or {}
 
   ---@type busted.matrix.each[]
@@ -460,6 +608,7 @@ end
 function Matrix:reset()
   self.vars = {}
   self.vars_by_name = {}
+  self.seen_vars = {}
   self.includes = {}
   self.excludes = {}
   self.tags = {}
