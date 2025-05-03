@@ -14,8 +14,8 @@ describe("one", function()
 
   MATRIX("inner", function()
     add { true, false }
-    tag({ inner = true }, "inner")
-    tag({ inner = false }, "outer")
+    tag({ inner = true }, "yes")
+    tag({ inner = false }, "no")
   end)
 
   it("after inner matrix", function()
@@ -56,7 +56,12 @@ describe("two", function()
   end)
 end)
 
+local three_count = 0
+
 it("three", function()
+  three_count = three_count + 1
+  assert(three_count < 5)
+
   assert(matrix.foo == "x" or matrix.foo == "y")
   assert(matrix.bar == "a" or matrix.bar == "b")
 end)

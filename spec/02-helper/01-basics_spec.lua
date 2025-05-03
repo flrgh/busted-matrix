@@ -31,6 +31,26 @@ local function assert_matrix(matrix, ctx)
   end, "unknown matrix var: not_a_var")
 end
 
+local function assert_matrix_all(matrix, ctx)
+  local msg = "expected matrix object to be populated in " .. ctx
+  assert.table(matrix, msg)
+  assert.is_function(matrix.all, msg)
+
+  local block_seen = {}
+  local count = 0
+
+  for each in matrix.all() do
+    local key = string.format("%s x = %q, y = %q",
+                              ctx, tostring(each.x), tostring(each.y))
+
+    assert.is_nil(block_seen[key], "duplicate matrix: " .. key)
+    block_seen[key] = true
+    count = count + 1
+  end
+
+  assert.equals(5, count)
+end
+
 
 MATRIX {
   vars = {
@@ -47,39 +67,54 @@ MATRIX {
   },
 }
 
+lazy_setup(function()
+  assert_matrix_all(matrix, "file() -> lazy_setup()")
+end)
+
+strict_setup(function()
+  assert_matrix_all(matrix, "file() -> strict_setup()")
+end)
+
+lazy_teardown(function()
+  assert_matrix_all(matrix, "file() -> lazy_teardown()")
+end)
+
+strict_teardown(function()
+  assert_matrix_all(matrix, "file() -> strict_teardown()")
+end)
 
 describe("basic usage", function()
   assert_matrix(matrix, "describe()")
 
   strict_setup(function()
-    assert_matrix(matrix, "strict_setup()")
+    assert_matrix(matrix, "describe() -> strict_setup()")
   end)
 
   strict_teardown(function()
-    assert_matrix(matrix, "strict_teardown()")
+    assert_matrix(matrix, "describe() -> strict_teardown()")
   end)
 
   lazy_setup(function()
-    assert_matrix(matrix, "lazy_setup()")
+    assert_matrix(matrix, "describe() -> lazy_setup()")
   end)
 
   lazy_teardown(function()
-    assert_matrix(matrix, "lazy_teardown()")
+    assert_matrix(matrix, "describe() -> lazy_teardown()")
   end)
 
   before_each(function()
-    assert_matrix(matrix, "before_each()")
+    assert_matrix(matrix, "describe() -> before_each()")
   end)
 
   after_each(function()
-    assert_matrix(matrix, "after_each()")
+    assert_matrix(matrix, "describe() -> after_each()")
   end)
 
   it("test case", function()
     finally(function()
-      assert_matrix(matrix, "finally()")
+      assert_matrix(matrix, "describe() -> it() -> finally()")
     end)
 
-    assert_matrix(matrix, "it()")
+    assert_matrix(matrix, "describe() -> it()")
   end)
 end)

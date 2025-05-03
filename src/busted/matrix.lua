@@ -268,7 +268,7 @@ end
 ---@param t table
 ---@return table
 local function unprotect(t)
-  check_type("table", t, 1, "Matrix.unprotect")
+  check_type("table", t, 1, "Matrix.unprotect()")
 
   local new = {}
 
@@ -287,8 +287,8 @@ end
 ---@param vars? table
 ---@return table
 local function protect(matrix, vars)
-  check_type("table", matrix, 1, "Matrix.protect")
-  check_optional("table", vars, 2, "Matrix.protect")
+  check_type("table", matrix, 1, "Matrix.protect()")
+  check_optional("table", vars, 2, "Matrix.protect()")
 
   if not vars then
     local mt = getmetatable(matrix)
@@ -296,7 +296,7 @@ local function protect(matrix, vars)
   end
 
   assert(type(vars) == "table",
-         e_badarg(1, "Matrix.protect", "not a matrix element"))
+         e_badarg(1, "Matrix.protect()", "not a matrix element"))
 
   local protected = setmetatable({}, {
     vars = vars,
@@ -378,9 +378,9 @@ end
 function Matrix:add(name, values)
   check_non_empty_string(name, 1, "add")
   assert(self.vars_by_name[name] == nil,
-         e_badarg(1, "Matrix.add", "duplicate var"))
+         e_badarg(1, "Matrix:add()", "duplicate var"))
 
-  check_non_empty_table(values, 2, "add")
+  check_non_empty_table(values, 2, "Matrix::add()")
 
   ---@type busted.matrix.var
   local entry = {
@@ -400,7 +400,7 @@ end
 ---@param inc table
 ---@return busted.matrix
 function Matrix:include(inc)
-  check_non_empty_table(inc, 1, "include")
+  check_non_empty_table(inc, 1, "Matrix:include()")
   insert(self.includes, inc)
   return self
 end
@@ -411,7 +411,7 @@ end
 ---@param exc table
 ---@return busted.matrix
 function Matrix:exclude(exc)
-  check_non_empty_table(exc, 1, "exclude")
+  check_non_empty_table(exc, 1, "Matrix:exclude()")
   insert(self.excludes, exc)
   return self
 end
@@ -423,9 +423,9 @@ end
 ---@param tag string|string[]
 ---@return busted.matrix
 function Matrix:tag(match, tag)
-  check_non_empty_table(match, 1, "tag")
+  check_non_empty_table(match, 1, "Matrix:tag()")
 
-  local tags = string_list(tag, 2, "tag", nil, false, true)
+  local tags = string_list(tag, 2, "Matrix:tag()", nil, false, true)
 
   insert(self.tags, {
     match = match,
@@ -443,7 +443,7 @@ end
 ---@param opts? { label: boolean, protect: boolean }
 ---@return busted.matrix.each[]
 function Matrix:render(opts)
-  check_optional("table", opts, 1, "render")
+  check_optional("table", opts, 1, "Matrix:render()")
   opts = opts or {}
 
   ---@type busted.matrix.each[]
