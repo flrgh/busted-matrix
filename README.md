@@ -46,7 +46,16 @@ local function is_even(n)
   return n % 2 == 0
 end
 
+local sum = 0
+setup(function()
+  for _, each in ipairs(matrix.all) do
+    sum = sum + each.odd + each.even
+  end
+end)
+
 describe("numbers", function()
+  assert.equals(180, sum, "setup() adds everything up")
+
   it("odds are odd", function()
     assert(is_odd(matrix.odd))
   end)
@@ -190,7 +199,7 @@ end)
 
 ## include
 
-Matricies can be expanded and updated via `include` directives:
+Matrices can be expanded and updated via `include` directives:
 
 ```lua
 MATRIX(function()

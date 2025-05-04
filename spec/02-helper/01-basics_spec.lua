@@ -1,6 +1,6 @@
 local seen = {}
 
-local function assert_matrix(matrix, ctx)
+local function assert_matrix_each(matrix, ctx)
   local msg = "expected matrix object to be populated in " .. ctx
   assert.table(matrix, msg)
   assert.number(matrix.y, msg)
@@ -84,37 +84,37 @@ strict_teardown(function()
 end)
 
 describe("basic usage", function()
-  assert_matrix(matrix, "describe()")
+  assert_matrix_each(matrix, "describe()")
 
   strict_setup(function()
-    assert_matrix(matrix, "describe() -> strict_setup()")
+    assert_matrix_each(matrix, "describe() -> strict_setup()")
   end)
 
   strict_teardown(function()
-    assert_matrix(matrix, "describe() -> strict_teardown()")
+    assert_matrix_each(matrix, "describe() -> strict_teardown()")
   end)
 
   lazy_setup(function()
-    assert_matrix(matrix, "describe() -> lazy_setup()")
+    assert_matrix_each(matrix, "describe() -> lazy_setup()")
   end)
 
   lazy_teardown(function()
-    assert_matrix(matrix, "describe() -> lazy_teardown()")
+    assert_matrix_each(matrix, "describe() -> lazy_teardown()")
   end)
 
   before_each(function()
-    assert_matrix(matrix, "describe() -> before_each()")
+    assert_matrix_each(matrix, "describe() -> before_each()")
   end)
 
   after_each(function()
-    assert_matrix(matrix, "describe() -> after_each()")
+    assert_matrix_each(matrix, "describe() -> after_each()")
   end)
 
   it("test case", function()
     finally(function()
-      assert_matrix(matrix, "describe() -> it() -> finally()")
+      assert_matrix_each(matrix, "describe() -> it() -> finally()")
     end)
 
-    assert_matrix(matrix, "describe() -> it()")
+    assert_matrix_each(matrix, "describe() -> it()")
   end)
 end)

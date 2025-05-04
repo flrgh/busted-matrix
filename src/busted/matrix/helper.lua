@@ -321,12 +321,12 @@ return function(busted, _, options)
   ---@param element _busted.context
   ---@param attributes? _busted.context.attributes
   local function on_register(descriptor, name, fn, element, attributes)
-    local parent = busted.context.get()
-
     if attributes and attributes.matrix then
       printf("register(%s(%s)) => already expanded", descriptor, name)
       return nil, true
     end
+
+    local parent = busted.context.get()
 
     local matrix = get_matrix(parent)
     if not matrix then
