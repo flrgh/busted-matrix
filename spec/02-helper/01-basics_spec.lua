@@ -34,12 +34,12 @@ end
 local function assert_matrix_all(matrix, ctx)
   local msg = "expected matrix object to be populated in " .. ctx
   assert.table(matrix, msg)
-  assert.is_function(matrix.all, msg)
+  assert.table(matrix.all, msg)
 
   local block_seen = {}
   local count = 0
 
-  for each in matrix.all() do
+  for _, each in ipairs(matrix.all) do
     local key = string.format("%s x = %q, y = %q",
                               ctx, tostring(each.x), tostring(each.y))
 

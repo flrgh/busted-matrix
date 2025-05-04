@@ -185,13 +185,6 @@ return function(busted, _, options)
   end
 
   ---@param context _busted.context
-  ---@return busted.matrix.each?
-  local function get_all(context)
-    local state = get_state(context)
-    return state and state.all
-  end
-
-  ---@param context _busted.context
   ---@return busted.matrix
   local function init_state(context)
     local attributes = context.attributes
@@ -224,6 +217,38 @@ return function(busted, _, options)
     if context.env then
       context.env.matrix = nil
     end
+  end
+
+  local function empty_iter() end
+
+  local function table_iter(t)
+    if not t then
+      return empty_iter
+    end
+
+    local i = 0
+    return function()
+      i = i + 1
+      return t[i]
+    end
+  end
+
+  ---@param context _busted.context
+  ---@param descriptors string|string[]
+  ---@return fun():_busted.context?
+  local function get_children(context, descriptors)
+    if type(descriptors) == "string" then
+      return table_iter(context[descriptors])
+    end
+
+    assert(type(descriptors) == "table")
+    local children = {}
+    for _, desc in ipairs(descriptors) do
+      for child in get_children(context, desc) do
+        table.insert(children, child)
+      end
+    end
+    return table_iter(children)
   end
 
   local fmt = string.format
@@ -322,26 +347,14 @@ return function(busted, _, options)
 
     printf("register(%s(%s)) => expand() => %s", descriptor, name, #rendered)
 
-    local function all()
-      local i = 0
-      return function()
-        i = i + 1
-        local each = rendered[i]
-        if not each then
-          return
-        end
-
-        return Matrix.unprotect(each.matrix)
-      end
+    local all = {}
+    for i = 1, #rendered do
+      all[i] = Matrix.unprotect(rendered[i].matrix)
     end
 
-    for _, desc in ipairs(lifecycle_blocks) do
-      if parent[desc] then
-        for _, child in ipairs(parent[desc]) do
-          child.env = child.env or {}
-          child.env.matrix = { all = all }
-        end
-      end
+    for child in get_children(parent, lifecycle_blocks) do
+      child.env = child.env or {}
+      child.env.matrix = { all = all }
     end
 
     for _, each in ipairs(rendered) do
@@ -399,10 +412,10 @@ return function(busted, _, options)
     return nil, true
   end
 
-  ---@param descriptor string
+  ---@param _descriptor string
   ---@param element _busted.context
-  ---@param parent? _busted.context
-  local function on_end(descriptor, element, parent)
+  ---@param _parent? _busted.context
+  local function on_end(_descriptor, element, _parent)
     clear_state(element)
     return nil, true
   end
@@ -410,6 +423,7 @@ return function(busted, _, options)
   busted.subscribe({ "register", "MATRIX" }, function(name, fn, trace, attributes)
     local m = attach("MATRIX", name, fn, trace, attributes)
     local env = m.env
+    wrap_env(m)
 
     local context = busted.context.get()
     env.matrix = init_state(context)
@@ -514,22 +528,11 @@ return function(busted, _, options)
       env.matrix:tag(match, tag)
     end
 
-    wrap_env(m)
-
     return nil, false
   end, { priority = 1 })
 
-  local function handle_once(channel, fn, opts)
-    local sub
-    sub = busted.subscribe(channel, function(...)
-      local res, continue = fn(...)
-      busted.unsubscribe(sub)
-      return res, continue
-    end, opts)
-  end
-
   for _, descriptor in ipairs(each_blocks) do
-    busted.subscribe({ "register", descriptor }, function(name, fn, element, attributes)
+    busted.subscribe({ "register", descriptor }, function(name, _fn, _element, attributes)
       local context = busted.context.get()
 
       local matrix = get_matrix(context)
@@ -572,7 +575,7 @@ return function(busted, _, options)
     busted.subscribe(
       { start_end_name[descriptor], "end" },
       function(element, parent)
-        return on_end(descriptor, element, _parent)
+        return on_end(descriptor, element, parent)
       end,
       { priority = 1 }
     )
